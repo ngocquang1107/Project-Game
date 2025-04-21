@@ -1,0 +1,35 @@
+# depslib dependency file v1.0
+1745139722 source:c:\projects sdl\archery defender\arrow.cpp
+	"arrow.h"
+
+1745139679 c:\projects sdl\archery defender\arrow.h
+	<SDL.h>
+	<algorithm>
+
+1745141610 source:c:\projects sdl\archery defender\character.cpp
+	"character.h"
+	<iostream>
+
+1745141252 c:\projects sdl\archery defender\character.h
+	<SDL.h>
+	<vector>
+	"arrow.h"
+
+1745139788 source:c:\projects sdl\archery defender\enemy.cpp
+	"enemy.h"
+
+1745139735 c:\projects sdl\archery defender\enemy.h
+	<SDL.h>
+
+1745140513 source:c:\projects sdl\archery defender\main.cpp
+	"game.h"
+	<iostream>
+
+1745165971 c:\projects sdl\archery defender\game.h
+	<SDL.h>
+	<SDL_image.h>
+	<SDL_mixer.h>
+	"character.h"
+	"enemy.h"
+	<vector>
+
