@@ -5,8 +5,9 @@
 #include <iostream>
 #include <cstdlib>
 #include <ctime>
+#include <sstream>
 
-Game::Game() : running(false), window(nullptr), renderer(nullptr), characterTexture(nullptr), arrowTexture(nullptr), enemyTexture(nullptr), lastEnemySpawnTime(0), hitSound(nullptr){// Khởi tạo seed cho số ngẫu nhiên
+Game::Game() : running(false), window(nullptr), renderer(nullptr), characterTexture(nullptr), arrowTexture(nullptr), enemyIdleTexture(nullptr), enemyAttackTexture(nullptr), laserTexture(nullptr), lastEnemySpawnTime(0), hitSound(nullptr), score(0), font(nullptr), scoreTexture(nullptr){
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
     }
 
@@ -35,6 +36,9 @@ void Game::init() {
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
         logErrorAndExit("Mix_OpenAudio", Mix_GetError());
     }
+    if (TTF_Init() == -1) {
+        logErrorAndExit("TTF_Init", TTF_GetError());
+    }
     running = true;
     loading_texture();
 }
@@ -57,8 +61,10 @@ void Game::loading_texture() {
     background = loadTexture("assets/images/background.png", renderer);
     characterTexture = loadTexture("assets/images/character_sprites.png", renderer);
     arrowTexture = loadTexture("assets/images/arrow.png", renderer);
-    enemyTexture = loadTexture("assets/images/enemy.png", renderer);
-    if (!characterTexture || !arrowTexture || !background || !enemyTexture) {
+    enemyIdleTexture = loadTexture("assets/images/enemy.png", renderer);
+    enemyAttackTexture = loadTexture("assets/images/enemy_attack_sprites.png", renderer);
+    laserTexture = loadTexture("assets/images/laser.png", renderer);
+    if (!characterTexture || !arrowTexture || !background || !enemyIdleTexture || !enemyAttackTexture) {
         logErrorAndExit("Failed to load textures", "Check image files");
     }
     // Đặt nhân vật ở giữa phía dưới: x = 368, y = 526
@@ -68,6 +74,40 @@ void Game::loading_texture() {
     if (!hitSound) {
         logErrorAndExit("Mix_LoadWAV hit.wav", Mix_GetError());
     }
+    font = TTF_OpenFont("assets/fonts/arial.ttf", 24); // Cỡ chữ 24
+    if (!font) {
+        logErrorAndExit("TTF_OpenFont", TTF_GetError());
+    }
+    // Khởi tạo texture điểm số ban đầu
+    score = 0;
+    updateScoreTexture();
+}
+
+void Game::updateScoreTexture() {
+    // Chuyển điểm số thành chuỗi
+    std::stringstream ss;
+    ss << "Score: " << score;
+    std::string scoreText = ss.str();
+
+    // Tạo surface từ văn bản
+    SDL_Color textColor = {255, 255, 255, 255}; // Màu trắng
+    SDL_Surface* textSurface = TTF_RenderText_Solid(font, scoreText.c_str(), textColor);
+    if (!textSurface) {
+        logErrorAndExit("TTF_RenderText_Solid", TTF_GetError());
+    }
+
+    // Tạo texture từ surface
+    if (scoreTexture) {
+        SDL_DestroyTexture(scoreTexture); // Giải phóng texture cũ
+    }
+    scoreTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    if (!scoreTexture) {
+        logErrorAndExit("SDL_CreateTextureFromSurface", SDL_GetError());
+    }
+
+    // Cập nhật vùng vẽ
+    scoreRect = { 10, 10, textSurface->w, textSurface->h }; // Góc trên bên trái
+    SDL_FreeSurface(textSurface);
 }
 
 void Game::run() {
@@ -92,13 +132,15 @@ void Game::run() {
         if (currentTime - lastEnemySpawnTime >= 1000) { // 1000ms = 1 giây
             // Tọa độ ngẫu nhiên ở phía trên (y = -100 để xuất hiện ngoài màn hình)
             float spawnX = static_cast<float>(std::rand() % (SCREEN_WIDTH - 100)); // 100 là frameWidth của kẻ địch
-            enemies.emplace_back(enemyTexture, spawnX, -100);
+            enemies.emplace_back(enemyIdleTexture, enemyAttackTexture, laserTexture, spawnX, -100);
             lastEnemySpawnTime = currentTime;
         }
         // Cập nhật kẻ địch
         for (auto& enemy : enemies) {
             enemy.updateAnimation(currentTime);
-            enemy.update();
+            float playerX = character.x + character.frameWidth / 2;
+            float playerY = character.y + character.frameHeight / 2;
+            enemy.update(playerX, playerY);
         }
         // Kiểm tra va chạm giữa mũi tên và kẻ địch
         auto& arrows = character.arrows;
@@ -107,6 +149,8 @@ void Game::run() {
             for (auto enemyIt = enemies.begin(); enemyIt != enemies.end();) {
                 if (SDL_HasIntersection(&arrowIt->collisionRect, &enemyIt->collisionRect)) {
                     Mix_PlayChannel(-1, hitSound, 0);
+                    score += 10; // Tăng điểm khi bắn hạ
+                    updateScoreTexture(); // Cập nhật texture điểm số
                     enemyIt = enemies.erase(enemyIt);
                     arrowIt = arrows.erase(arrowIt);
                     arrowRemoved = true;
@@ -135,6 +179,10 @@ void Game::run() {
         for (const auto& enemy : enemies) {
             enemy.render(renderer);
         }
+        // Vẽ điểm số
+        if (scoreTexture) {
+            SDL_RenderCopy(renderer, scoreTexture, nullptr, &scoreRect);
+        }
         SDL_RenderPresent(renderer);
     }
 }
@@ -142,9 +190,13 @@ void Game::destroy() {
     SDL_DestroyTexture(background);
     SDL_DestroyTexture(characterTexture);
     SDL_DestroyTexture(arrowTexture);
-    SDL_DestroyTexture(enemyTexture);
+    SDL_DestroyTexture(enemyIdleTexture);
+    SDL_DestroyTexture(enemyAttackTexture);
     Mix_FreeChunk(hitSound);
     Mix_CloseAudio();
+    SDL_DestroyTexture(scoreTexture);
+    TTF_CloseFont(font);
+    TTF_Quit();
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
@@ -157,3 +209,4 @@ void Game::quit() {
 Game::~Game() {
     destroy();
 }
+
