@@ -4,6 +4,7 @@
 #include <SDL.h>
 #include <SDL_image.h>
 #include <SDL_mixer.h>
+#include <SDL_ttf.h>
 #include "character.h"
 #include "enemy.h"
 #include <vector>
@@ -27,12 +28,20 @@ public:
     SDL_Texture* characterTexture;
     SDL_Texture* arrowTexture;
     SDL_Texture* background;
-    SDL_Texture* enemyTexture;
+    SDL_Texture* enemyIdleTexture; // Texture cho trạng thái idle
+    SDL_Texture* enemyAttackTexture; // Texture cho trạng thái tấn công
+    SDL_Texture* laserTexture;
     Character character; // Lưu Character
     std::vector<Enemy> enemies;
     SDL_Event event;
     Uint32 lastEnemySpawnTime;
     Mix_Chunk* hitSound;
+    int score;
+    TTF_Font* font;
+    SDL_Texture* scoreTexture;
+    SDL_Rect scoreRect;
+    void updateScoreTexture();
 };
 
 #endif // GAME_H
+
