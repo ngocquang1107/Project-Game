@@ -2,14 +2,21 @@
 #include "character.h"
 #include "arrow.h"
 #include "enemy.h"
+#include "boss.h"
 #include <iostream>
 #include <cstdlib>
 #include <ctime>
 #include <sstream>
 
-Game::Game() : running(false), window(nullptr), renderer(nullptr), characterTexture(nullptr), arrowTexture(nullptr), enemyIdleTexture(nullptr), enemyAttackTexture(nullptr), laserTexture(nullptr), lastEnemySpawnTime(0), hitSound(nullptr), score(0), font(nullptr), scoreTexture(nullptr){
+Game::Game() :  running(false), window(nullptr), renderer(nullptr), characterTexture(nullptr), arrowTexture(nullptr), enemyIdleTexture(nullptr),
+                enemyAttackTexture(nullptr), laserTexture(nullptr), bossAttackTexture(nullptr),bossDeathTexture(nullptr), bossHitTexture(nullptr),
+                boss(nullptr), hasBoss(false), lastBossSpawnTime(0),
+                lastEnemySpawnTime(0), hitSound(nullptr), score(0), font(nullptr),
+                scoreTexture(nullptr), healthTexture(nullptr),
+                gameState(MENU), selectedMenuItem(0), startGameTexture(nullptr), quitTexture(nullptr),
+                gameOverTextTexture(nullptr), playAgainTexture(nullptr){
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
-    }
+}
 
 void Game::logErrorAndExit(const char* msg, const char* error) {
     SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_ERROR, "%s: %s", msg, error);
@@ -64,7 +71,10 @@ void Game::loading_texture() {
     enemyIdleTexture = loadTexture("assets/images/enemy.png", renderer);
     enemyAttackTexture = loadTexture("assets/images/enemy_attack_sprites.png", renderer);
     laserTexture = loadTexture("assets/images/laser.png", renderer);
-    if (!characterTexture || !arrowTexture || !background || !enemyIdleTexture || !enemyAttackTexture) {
+    bossAttackTexture = loadTexture("assets/images/boss_attack_sprites.png", renderer);
+    bossDeathTexture = loadTexture("assets/images/boss_death_sprites.png", renderer);
+    bossHitTexture = loadTexture("assets/images/boss_hit.png", renderer);
+    if (!characterTexture || !arrowTexture || !background || !enemyIdleTexture || !enemyAttackTexture || !laserTexture || !bossAttackTexture || !bossDeathTexture || !bossHitTexture ) {
         logErrorAndExit("Failed to load textures", "Check image files");
     }
     // Đặt nhân vật ở giữa phía dưới: x = 368, y = 526
@@ -81,6 +91,126 @@ void Game::loading_texture() {
     // Khởi tạo texture điểm số ban đầu
     score = 0;
     updateScoreTexture();
+    updateHealthTexture();
+}
+
+void Game::initMenu() {
+    SDL_Color white = {255, 255, 255, 255};
+    SDL_Surface* surface;
+
+    // Start Game
+    surface = TTF_RenderText_Solid(font, "Start Game", white);
+    if (!surface) logErrorAndExit("TTF_RenderText_Solid", TTF_GetError());
+    startGameTexture = SDL_CreateTextureFromSurface(renderer, surface);
+    startGameRect = { (SCREEN_WIDTH - surface->w) / 2, 300, surface->w, surface->h };
+    SDL_FreeSurface(surface);
+
+    // Quit
+    surface = TTF_RenderText_Solid(font, "Quit", white);
+    if (!surface) logErrorAndExit("TTF_RenderText_Solid", TTF_GetError());
+    quitTexture = SDL_CreateTextureFromSurface(renderer, surface);
+    quitRect = { (SCREEN_WIDTH - surface->w) / 2, 350, surface->w, surface->h };
+    SDL_FreeSurface(surface);
+
+    // Game Over
+    surface = TTF_RenderText_Solid(font, "Game Over", white);
+    if (!surface) logErrorAndExit("TTF_RenderText_Solid", TTF_GetError());
+    gameOverTextTexture = SDL_CreateTextureFromSurface(renderer, surface);
+    gameOverTextRect = { (SCREEN_WIDTH - surface->w) / 2, 200, surface->w, surface->h };
+    SDL_FreeSurface(surface);
+
+    // Play Again
+    surface = TTF_RenderText_Solid(font, "Play Again", white);
+    if (!surface) logErrorAndExit("TTF_RenderText_Solid", TTF_GetError());
+    playAgainTexture = SDL_CreateTextureFromSurface(renderer, surface);
+    playAgainRect = { (SCREEN_WIDTH - surface->w) / 2, 300, surface->w, surface->h };
+    SDL_FreeSurface(surface);
+}
+
+void Game::renderMenu() {
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+
+    if (gameState == GAME_OVER) {
+        SDL_RenderCopy(renderer, gameOverTextTexture, nullptr, &gameOverTextRect);
+    }
+
+    // Màu của mục được chọn là vàng, mục không được chọn là trắng
+    SDL_Color selectedColor = {255, 255, 0, 255}; // Vàng
+    SDL_Color unselectedColor = {255, 255, 255, 255}; // Trắng
+    SDL_Surface* surface;
+
+    // Render "Start Game" hoặc "Play Again"
+    if (selectedMenuItem == 0) {
+        surface = TTF_RenderText_Solid(font, gameState == MENU ? "Start Game" : "Play Again", selectedColor);
+    } else {
+        surface = TTF_RenderText_Solid(font, gameState == MENU ? "Start Game" : "Play Again", unselectedColor);
+    }
+    SDL_Texture* tempTexture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_Rect tempRect = { (SCREEN_WIDTH - surface->w) / 2, 300, surface->w, surface->h };
+    SDL_RenderCopy(renderer, tempTexture, nullptr, &tempRect);
+    SDL_DestroyTexture(tempTexture);
+    SDL_FreeSurface(surface);
+
+    // Render "Quit"
+    if (selectedMenuItem == 1) {
+        surface = TTF_RenderText_Solid(font, "Quit", selectedColor);
+    } else {
+        surface = TTF_RenderText_Solid(font, "Quit", unselectedColor);
+    }
+    tempTexture = SDL_CreateTextureFromSurface(renderer, surface);
+    tempRect = { (SCREEN_WIDTH - surface->w) / 2, 350, surface->w, surface->h };
+    SDL_RenderCopy(renderer, tempTexture, nullptr, &tempRect);
+    SDL_DestroyTexture(tempTexture);
+    SDL_FreeSurface(surface);
+
+    SDL_RenderPresent(renderer);
+}
+
+void Game::handleMenuInput() {
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        if (event.type == SDL_QUIT) {
+            running = false;
+            return;
+        }
+        if (event.type == SDL_KEYDOWN) {
+            switch (event.key.keysym.sym) {
+                case SDLK_UP:
+                    selectedMenuItem = (selectedMenuItem == 0) ? 1 : 0;
+                    break;
+                case SDLK_DOWN:
+                    selectedMenuItem = (selectedMenuItem == 0) ? 1 : 0;
+                    break;
+                case SDLK_RETURN:
+                    if (selectedMenuItem == 0) { // Start Game hoặc Play Again
+                        gameState = PLAYING;
+                        if (gameState == PLAYING) {
+                            resetGame();
+                        }
+                    } else { // Quit
+                        running = false;
+                    }
+                    break;
+            }
+        }
+    }
+}
+
+void Game::resetGame() {
+    // Reset trạng thái trò chơi
+    character = Character(characterTexture, arrowTexture, 352, 494);
+    enemies.clear();
+    if (boss) {
+        delete boss;
+        boss = nullptr;
+    }
+    hasBoss = false;
+    lastBossSpawnTime = 0;
+    lastEnemySpawnTime = 0;
+    score = 0;
+    updateScoreTexture();
+    updateHealthTexture();
 }
 
 void Game::updateScoreTexture() {
@@ -110,10 +240,38 @@ void Game::updateScoreTexture() {
     SDL_FreeSurface(textSurface);
 }
 
+void Game::updateHealthTexture() {
+    std::stringstream ss;
+    ss << "HP: " << character.health;
+    std::string healthText = ss.str();
+
+    SDL_Color textColor = {255, 0, 0, 255}; // Màu đỏ
+    SDL_Surface* textSurface = TTF_RenderText_Solid(font, healthText.c_str(), textColor);
+    if (!textSurface) {
+        logErrorAndExit("TTF_RenderText_Solid", TTF_GetError());
+    }
+
+    if (healthTexture) {
+        SDL_DestroyTexture(healthTexture);
+    }
+    healthTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    if (!healthTexture) {
+        logErrorAndExit("SDL_CreateTextureFromSurface", SDL_GetError());
+    }
+
+    healthRect = { SCREEN_WIDTH - textSurface->w - 10, 10, textSurface->w, textSurface->h }; // Góc trên bên phải
+    SDL_FreeSurface(textSurface);
+}
+
+
 void Game::run() {
     if (!running) return;
     while (running) {
-        while (SDL_PollEvent(&event)) {
+        if (gameState == MENU || gameState == GAME_OVER) {
+            handleMenuInput();
+            renderMenu();
+        } else if (gameState == PLAYING) {
+           while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 running = false;
             }
@@ -128,12 +286,20 @@ void Game::run() {
         int currentTime = SDL_GetTicks();
         character.updateAnimation(currentTime);
         character.update(SCREEN_WIDTH, SCREEN_HEIGHT);
-        // Tạo kẻ địch mỗi 1 giây
-        if (currentTime - lastEnemySpawnTime >= 1000) { // 1000ms = 1 giây
+
+        if (character.isAlive && currentTime - lastEnemySpawnTime >= 2000) { // 1000ms = 1 giây
             // Tọa độ ngẫu nhiên ở phía trên (y = -100 để xuất hiện ngoài màn hình)
             float spawnX = static_cast<float>(std::rand() % (SCREEN_WIDTH - 100)); // 100 là frameWidth của kẻ địch
             enemies.emplace_back(enemyIdleTexture, enemyAttackTexture, laserTexture, spawnX, -100);
             lastEnemySpawnTime = currentTime;
+        }
+        // Xuất hiện boss sau mỗi 40 giây
+        if (character.isAlive && !hasBoss && currentTime - lastBossSpawnTime >= 40000) {
+            float spawnX = (SCREEN_WIDTH - 162) / 2; // Ở giữa phía trên
+            float spawnY = 0;
+            boss = new Boss(bossAttackTexture, bossDeathTexture, bossHitTexture, spawnX, spawnY);
+            hasBoss = true;
+            lastBossSpawnTime = currentTime;
         }
         // Cập nhật kẻ địch
         for (auto& enemy : enemies) {
@@ -141,6 +307,19 @@ void Game::run() {
             float playerX = character.x + character.frameWidth / 2;
             float playerY = character.y + character.frameHeight / 2;
             enemy.update(playerX, playerY);
+        }
+        if (hasBoss && boss) {
+            boss->updateAnimation(currentTime);
+            float playerX = character.x + character.frameWidth / 2;
+            float playerY = character.y + character.frameHeight / 2;
+            boss->update(playerX, playerY);
+            if (!boss->isAlive && !boss->isDying) {
+                delete boss;
+                boss = nullptr;
+                hasBoss = false;
+                score += 150; // Thưởng điểm khi hạ boss
+                updateScoreTexture();
+            }
         }
         // Kiểm tra va chạm giữa mũi tên và kẻ địch
         auto& arrows = character.arrows;
@@ -159,42 +338,116 @@ void Game::run() {
                     ++enemyIt;
                 }
             }
+            // Va chạm mũi tên-boss
+            if (!arrowRemoved && hasBoss && boss && boss->isAlive) {
+                if (SDL_HasIntersection(&arrowIt->collisionRect, &boss->collisionRect)) {
+                    boss->health--;
+                    Mix_PlayChannel(-1, hitSound, 0);
+                    if (boss->health <= 0) {
+                        boss->isAlive = false;
+                        boss->isDying = true;
+                        boss->currentFrame = 0; // Reset animation chết
+                    }
+                    arrowIt = arrows.erase(arrowIt);
+                    arrowRemoved = true;
+                }
+            }
             if (!arrowRemoved) {
                 ++arrowIt;
             }
         }
+        // Kiểm tra va chạm laser-nhân vật
+        if (character.isAlive) {
+            for (auto enemyIt = enemies.begin(); enemyIt != enemies.end(); ++enemyIt) {
+                auto& lasers = enemyIt->lasers;
+                for (auto laserIt = lasers.begin(); laserIt != lasers.end();) {
+                    if (SDL_HasIntersection(&laserIt->destRect, &character.collisionRect)) {
+                        character.health -= 10; // Giảm 10 HP mỗi lần trúng
+                        updateHealthTexture();
+                        laserIt = lasers.erase(laserIt);
+                        if (character.health <= 0) {
+                            character.isAlive = false;
+                            gameState = GAME_OVER;
+                            selectedMenuItem = 0;
+                        }
+                    } else {
+                        ++laserIt;
+                    }
+                }
+            }
+        }
+        // Va chạm boss hit-nhân vật
+            if (hasBoss && boss && boss->isAlive) {
+                auto& hits = boss->hits;
+                for (auto hitIt = hits.begin(); hitIt != hits.end();) {
+                    if (SDL_HasIntersection(&hitIt->collisionRect, &character.collisionRect)) {
+                        character.health -= 20; // Sát thương từ boss
+                        updateHealthTexture();
+                        hitIt = hits.erase(hitIt);
+                        if (character.health <= 0) {
+                            character.isAlive = false;
+                            gameState = GAME_OVER;
+                            selectedMenuItem = 0;
+                        }
+                    } else {
+                        ++hitIt;
+                    }
+                }
+            }
         // Xóa kẻ địch ra khỏi màn hình
         enemies.erase(
             std::remove_if(enemies.begin(), enemies.end(),
                 [this](const Enemy& enemy) { return enemy.isOffScreen(SCREEN_HEIGHT); }),
             enemies.end()
         );
-        // Vẽ
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        // Vẽ background
         SDL_Rect backgroundrect = {0, backgroundY, SCREEN_WIDTH, SCREEN_HEIGHT};
         SDL_RenderCopy(renderer, background, nullptr, &backgroundrect);
         backgroundrect.y = backgroundY - SCREEN_HEIGHT;
         SDL_RenderCopy(renderer, background, nullptr, &backgroundrect);
         character.render(renderer);
-        for (const auto& enemy : enemies) {
-            enemy.render(renderer);
-        }
-        // Vẽ điểm số
-        if (scoreTexture) {
-            SDL_RenderCopy(renderer, scoreTexture, nullptr, &scoreRect);
-        }
+
+        if (character.isAlive) {
+                character.render(renderer);
+                for (const auto& enemy : enemies) {
+                    enemy.render(renderer);
+                }
+                if (hasBoss && boss) {
+                    boss->render(renderer);
+                }
+                if (scoreTexture) {
+                    SDL_RenderCopy(renderer, scoreTexture, nullptr, &scoreRect);
+                }
+                if (healthTexture) {
+                    SDL_RenderCopy(renderer, healthTexture, nullptr, &healthRect);
+                }
+            }
         SDL_RenderPresent(renderer);
+        }
     }
 }
 void Game::destroy() {
+    if (boss) {
+        delete boss;
+        boss = nullptr;
+    }
     SDL_DestroyTexture(background);
     SDL_DestroyTexture(characterTexture);
     SDL_DestroyTexture(arrowTexture);
     SDL_DestroyTexture(enemyIdleTexture);
     SDL_DestroyTexture(enemyAttackTexture);
+    SDL_DestroyTexture(laserTexture);
+    SDL_DestroyTexture(bossAttackTexture);
+    SDL_DestroyTexture(bossDeathTexture);
+    SDL_DestroyTexture(bossHitTexture);
+    SDL_DestroyTexture(startGameTexture);
+    SDL_DestroyTexture(quitTexture);
+    SDL_DestroyTexture(gameOverTextTexture);
+    SDL_DestroyTexture(playAgainTexture);
     Mix_FreeChunk(hitSound);
     Mix_CloseAudio();
     SDL_DestroyTexture(scoreTexture);
+    SDL_DestroyTexture(healthTexture);
     TTF_CloseFont(font);
     TTF_Quit();
     SDL_DestroyRenderer(renderer);
@@ -209,4 +462,3 @@ void Game::quit() {
 Game::~Game() {
     destroy();
 }
-
