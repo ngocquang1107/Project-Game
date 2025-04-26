@@ -24,15 +24,22 @@ Character::Character(SDL_Texture* charTex, SDL_Texture* arrTex, int x, int y) {
     lastFrameTime = 0;
     srcRect = { 0, 0, frameWidth, frameHeight };
     destRect = { x, y, frameWidth, frameHeight };
+    int collWidth = 76;
+    int collHeight = 76;
+    collisionRect = { (int)x + (frameWidth - collWidth) / 2, (int)y + (frameHeight - collHeight) / 2, collWidth, collHeight };
     this->x = x;
     this->y = y;
     speed = 4.0f;
     angle = -90.0; // Xoay 90 độ sang trái
     moveLeft = moveRight = false;
     lastShootTime = 0; // Khởi tạo thời gian bắn
+    health = 100; // Máu ban đầu
+    isAlive = true;
 }
 
 void Character::handleInput(SDL_Event& event) {
+    if (!isAlive) return;
+
     if (event.type == SDL_KEYDOWN && event.key.repeat == 0) {
         switch (event.key.keysym.sym) {
             case SDLK_a:
@@ -68,7 +75,8 @@ void Character::updateAnimation(int currentTime) {
 }
 
 void Character::update(int screenWidth, int screenHeight) {
-    // Chỉ di chuyển trái/phải
+    if (!isAlive) return;
+
     if (moveLeft) x -= speed;
     if (moveRight) x += speed;
 
@@ -77,11 +85,12 @@ void Character::update(int screenWidth, int screenHeight) {
     if (x + frameWidth > screenWidth) x = screenWidth - frameWidth;
 
     destRect.x = (int)x;
+    collisionRect.x = (int)x + (frameWidth - collisionRect.w) / 2;
     destRect.y = (int)y;
 
     // Bắn tự động mỗi 0,5 giây
     Uint32 currentTime = SDL_GetTicks();
-    if (currentTime - lastShootTime >= 500) { // 500ms = 0,5 giây
+    if (currentTime - lastShootTime >= 500) {
         arrows.emplace_back(arrowTexture, x + frameWidth / 2 - 22, y - 22); // Vị trí cung
         lastShootTime = currentTime;
     }
