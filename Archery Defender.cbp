@@ -34,13 +34,20 @@
 		</Compiler>
 		<Unit filename="arrow.cpp" />
 		<Unit filename="arrow.h" />
+		<Unit filename="boss.cpp" />
+		<Unit filename="boss.h" />
+		<Unit filename="boss_hit.cpp" />
+		<Unit filename="boss_hit.h" />
 		<Unit filename="character.cpp" />
 		<Unit filename="character.h" />
 		<Unit filename="enemy.cpp" />
 		<Unit filename="enemy.h" />
 		<Unit filename="game.cpp" />
 		<Unit filename="game.h" />
+		<Unit filename="laser.cpp" />
+		<Unit filename="laser.h" />
 		<Unit filename="main.cpp" />
 		<Extensions />
 	</Project>
 </CodeBlocks_project_file>
+
