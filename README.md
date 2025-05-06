@@ -75,13 +75,16 @@ Archery Defender được phát triển bằng SDL2 và C++. Người chơi đi�
   - `boss_hit.png`: Sprite vũ khí của boss.
 - **Âm thanh**:
   - `hit.wav`: Âm thanh khi bắn trúng kẻ địch hoặc boss.
+  - `boss_attack.wav`: Âm thanh khi boss tấn công.
+  - `game_over.wav`: Âm thanh khi trò chơi kết thúc.
+  - `game_start.wav`: Âm thanh khi trò chơi bắt đầu.
 - **Font**:
   - `arial.ttf:` Font cho văn bản trong game.
 
 ## Ghi chú
 
 - Đảm bảo tất cả các file hình ảnh và âm thanh nằm trong thư mục làm việc.
-- Trò chơi có thể mở rộng thêm các tính năng như âm thanh nền, hiệu ứng đặc biệt, hoặc hỗ trợ chuột.
+- Trò chơi có thể mở rộng thêm các tính năng như, hiệu ứng đặc biệt, hoặc hỗ trợ chuột.
 
 ## Tác giả
 
