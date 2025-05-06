@@ -12,7 +12,7 @@
 Game::Game() :  running(false), window(nullptr), renderer(nullptr), characterTexture(nullptr), arrowTexture(nullptr), enemyIdleTexture(nullptr),
                 enemyAttackTexture(nullptr), laserTexture(nullptr), bossAttackTexture(nullptr),bossDeathTexture(nullptr), bossHitTexture(nullptr),
                 boss(nullptr), hasBoss(false), lastBossSpawnTime(0),
-                lastEnemySpawnTime(0), hitSound(nullptr), bossAttackSound(nullptr), gameOverSound(nullptr), gameStartSound(), score(0), font(nullptr),
+                lastEnemySpawnTime(0), hitSound(nullptr), bossAttackSound(nullptr), gameOverSound(nullptr), gameStartSound(nullptr), score(0), font(nullptr),
                 scoreTexture(nullptr), highScoreTexture(nullptr), healthTexture(nullptr),
                 gameState(MENU), selectedMenuItem(0), startGameTexture(nullptr), quitTexture(nullptr),
                 gameOverTextTexture(nullptr), playAgainTexture(nullptr){
