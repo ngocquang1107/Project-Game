@@ -44,11 +44,16 @@ public:
     SDL_Event event;
     Uint32 lastEnemySpawnTime;
     Mix_Chunk* hitSound;
+    Mix_Chunk* bossAttackSound;
+    Mix_Chunk* gameOverSound;
+    Mix_Chunk* gameStartSound;
     int score;
+    int highScore;
     TTF_Font* font;
     SDL_Texture* scoreTexture;
     SDL_Rect scoreRect;
-    void updateScoreTexture();
+    SDL_Texture* highScoreTexture;
+    SDL_Rect highScoreRect;
     SDL_Texture* healthTexture; // Texture để hiển thị máu
     SDL_Rect healthRect;
 
@@ -64,12 +69,16 @@ public:
     SDL_Texture* playAgainTexture;
     SDL_Rect playAgainRect;
 
+    void updateScoreTexture();
+    void updateHighScoreTexture();
     void updateHealthTexture();
     void updateGameOverTexture();
     void initMenu();
     void renderMenu();
     void handleMenuInput();
     void resetGame();
+    void loadHighScore();
+    void saveHighScore();
 };
 
 #endif // GAME_H
