@@ -7,12 +7,13 @@
 #include <cstdlib>
 #include <ctime>
 #include <sstream>
+#include <fstream>
 
 Game::Game() :  running(false), window(nullptr), renderer(nullptr), characterTexture(nullptr), arrowTexture(nullptr), enemyIdleTexture(nullptr),
                 enemyAttackTexture(nullptr), laserTexture(nullptr), bossAttackTexture(nullptr),bossDeathTexture(nullptr), bossHitTexture(nullptr),
                 boss(nullptr), hasBoss(false), lastBossSpawnTime(0),
-                lastEnemySpawnTime(0), hitSound(nullptr), score(0), font(nullptr),
-                scoreTexture(nullptr), healthTexture(nullptr),
+                lastEnemySpawnTime(0), hitSound(nullptr), bossAttackSound(nullptr), gameOverSound(nullptr), gameStartSound(), score(0), font(nullptr),
+                scoreTexture(nullptr), highScoreTexture(nullptr), healthTexture(nullptr),
                 gameState(MENU), selectedMenuItem(0), startGameTexture(nullptr), quitTexture(nullptr),
                 gameOverTextTexture(nullptr), playAgainTexture(nullptr){
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
@@ -48,6 +49,8 @@ void Game::init() {
     }
     running = true;
     loading_texture();
+    initMenu();
+    loadHighScore();
 }
 
 SDL_Texture* loadTexture(const char* filePath, SDL_Renderer* renderer) {
@@ -84,6 +87,21 @@ void Game::loading_texture() {
     if (!hitSound) {
         logErrorAndExit("Mix_LoadWAV hit.wav", Mix_GetError());
     }
+    bossAttackSound = Mix_LoadWAV("assets/sounds/boss_attack.wav");
+    if (!bossAttackSound) {
+        logErrorAndExit("Mix_LoadWAV boss_attack.wav", Mix_GetError());
+    }
+
+    gameOverSound = Mix_LoadWAV("assets/sounds/game_over.wav");
+    if (!gameOverSound) {
+        logErrorAndExit("Mix_LoadWAV game_over.wav", Mix_GetError());
+    }
+
+    gameStartSound = Mix_LoadWAV("assets/sounds/game_start.wav");
+    if (!gameStartSound) {
+        logErrorAndExit("Mix_LoadWAV game_start.wav", Mix_GetError());
+    }
+
     font = TTF_OpenFont("assets/fonts/arial.ttf", 24); // Cỡ chữ 24
     if (!font) {
         logErrorAndExit("TTF_OpenFont", TTF_GetError());
@@ -91,7 +109,34 @@ void Game::loading_texture() {
     // Khởi tạo texture điểm số ban đầu
     score = 0;
     updateScoreTexture();
+    updateHighScoreTexture();
     updateHealthTexture();
+}
+
+void Game::loadHighScore() {
+    std::ifstream inFile("highscore.txt");
+    if (inFile.is_open()) {
+        inFile >> highScore;
+        inFile.close();
+    } else {
+        highScore = 0; // Nếu không có file, High Score mặc định là 0
+        std::cout << "No highscore.txt found, setting High Score to 0" << std::endl;
+    }
+    updateHighScoreTexture();
+}
+
+void Game::saveHighScore() {
+    if (score > highScore) {
+        highScore = score;
+        std::ofstream outFile("highscore.txt");
+        if (outFile.is_open()) {
+            outFile << highScore;
+            outFile.close();
+        } else {
+            std::cout << "Failed to save High Score to highscore.txt" << std::endl;
+        }
+        updateHighScoreTexture();
+    }
 }
 
 void Game::initMenu() {
@@ -185,6 +230,9 @@ void Game::handleMenuInput() {
                 case SDLK_RETURN:
                     if (selectedMenuItem == 0) { // Start Game hoặc Play Again
                         gameState = PLAYING;
+                        if (gameStartSound) {
+                            Mix_PlayChannel(-1, gameStartSound, 0);
+                        }
                         if (gameState == PLAYING) {
                             resetGame();
                         }
@@ -206,8 +254,8 @@ void Game::resetGame() {
         boss = nullptr;
     }
     hasBoss = false;
-    lastBossSpawnTime = 0;
-    lastEnemySpawnTime = 0;
+    lastBossSpawnTime = SDL_GetTicks(); // Đặt thời gian spawn boss bằng thời gian hiện tại để tránh spawn ngay
+    lastEnemySpawnTime = SDL_GetTicks();
     score = 0;
     updateScoreTexture();
     updateHealthTexture();
@@ -237,6 +285,29 @@ void Game::updateScoreTexture() {
 
     // Cập nhật vùng vẽ
     scoreRect = { 10, 10, textSurface->w, textSurface->h }; // Góc trên bên trái
+    SDL_FreeSurface(textSurface);
+}
+
+void Game::updateHighScoreTexture() {
+    std::stringstream ss;
+    ss << "High Score: " << highScore;
+    std::string highScoreText = ss.str();
+
+    SDL_Color textColor = {255, 255, 255, 255};
+    SDL_Surface* textSurface = TTF_RenderText_Solid(font, highScoreText.c_str(), textColor);
+    if (!textSurface) {
+        logErrorAndExit("TTF_RenderText_Solid", TTF_GetError());
+    }
+
+    if (highScoreTexture) {
+        SDL_DestroyTexture(highScoreTexture);
+    }
+    highScoreTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    if (!highScoreTexture) {
+        logErrorAndExit("SDL_CreateTextureFromSurface", SDL_GetError());
+    }
+
+    highScoreRect = { 10, 40, textSurface->w, textSurface->h }; // Bên dưới Score
     SDL_FreeSurface(textSurface);
 }
 
@@ -287,7 +358,7 @@ void Game::run() {
         character.updateAnimation(currentTime);
         character.update(SCREEN_WIDTH, SCREEN_HEIGHT);
 
-        if (character.isAlive && currentTime - lastEnemySpawnTime >= 2000) { // 1000ms = 1 giây
+        if (character.isAlive && currentTime - lastEnemySpawnTime >= 2000) { // 2000ms = 2 giây
             // Tọa độ ngẫu nhiên ở phía trên (y = -100 để xuất hiện ngoài màn hình)
             float spawnX = static_cast<float>(std::rand() % (SCREEN_WIDTH - 100)); // 100 là frameWidth của kẻ địch
             enemies.emplace_back(enemyIdleTexture, enemyAttackTexture, laserTexture, spawnX, -100);
@@ -312,24 +383,27 @@ void Game::run() {
             boss->updateAnimation(currentTime);
             float playerX = character.x + character.frameWidth / 2;
             float playerY = character.y + character.frameHeight / 2;
-            boss->update(playerX, playerY);
+            boss->update(playerX, playerY, bossAttackSound);
             if (!boss->isAlive && !boss->isDying) {
                 delete boss;
                 boss = nullptr;
                 hasBoss = false;
                 score += 150; // Thưởng điểm khi hạ boss
                 updateScoreTexture();
+                saveHighScore();
             }
         }
         // Kiểm tra va chạm giữa mũi tên và kẻ địch
         auto& arrows = character.arrows;
         for (auto arrowIt = arrows.begin(); arrowIt != arrows.end();) {
             bool arrowRemoved = false;
+
             for (auto enemyIt = enemies.begin(); enemyIt != enemies.end();) {
                 if (SDL_HasIntersection(&arrowIt->collisionRect, &enemyIt->collisionRect)) {
                     Mix_PlayChannel(-1, hitSound, 0);
                     score += 10; // Tăng điểm khi bắn hạ
                     updateScoreTexture(); // Cập nhật texture điểm số
+                    saveHighScore();
                     enemyIt = enemies.erase(enemyIt);
                     arrowIt = arrows.erase(arrowIt);
                     arrowRemoved = true;
@@ -369,6 +443,10 @@ void Game::run() {
                             character.isAlive = false;
                             gameState = GAME_OVER;
                             selectedMenuItem = 0;
+                            if (gameOverSound) {
+                                Mix_PlayChannel(-1, gameOverSound, 0); // Phát âm thanh game over
+                            }
+                            saveHighScore();
                         }
                     } else {
                         ++laserIt;
@@ -388,6 +466,10 @@ void Game::run() {
                             character.isAlive = false;
                             gameState = GAME_OVER;
                             selectedMenuItem = 0;
+                            if (gameOverSound) {
+                                Mix_PlayChannel(-1, gameOverSound, 0); // Phát âm thanh game over
+                            }
+                            saveHighScore();
                         }
                     } else {
                         ++hitIt;
@@ -418,6 +500,9 @@ void Game::run() {
                 if (scoreTexture) {
                     SDL_RenderCopy(renderer, scoreTexture, nullptr, &scoreRect);
                 }
+                if (highScoreTexture) {
+                    SDL_RenderCopy(renderer, highScoreTexture, nullptr, &highScoreRect);
+                }
                 if (healthTexture) {
                     SDL_RenderCopy(renderer, healthTexture, nullptr, &healthRect);
                 }
@@ -444,7 +529,11 @@ void Game::destroy() {
     SDL_DestroyTexture(quitTexture);
     SDL_DestroyTexture(gameOverTextTexture);
     SDL_DestroyTexture(playAgainTexture);
+    SDL_DestroyTexture(highScoreTexture);
     Mix_FreeChunk(hitSound);
+    Mix_FreeChunk(bossAttackSound);
+    Mix_FreeChunk(gameOverSound);
+    Mix_FreeChunk(gameStartSound);
     Mix_CloseAudio();
     SDL_DestroyTexture(scoreTexture);
     SDL_DestroyTexture(healthTexture);
