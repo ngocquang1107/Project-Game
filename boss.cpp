@@ -1,8 +1,12 @@
 #include "boss.h"
+#include "boss_hit.h"
 #include <iostream>
 #include <algorithm>
 
-Boss::Boss(SDL_Texture* attackTex, SDL_Texture* deathTex, SDL_Texture* hitTex, float startX, float startY) {
+Boss::Boss(SDL_Texture* attackTex, SDL_Texture* deathTex, SDL_Texture* hitTex, float startX, float startY):
+        attackTexture(attackTex), deathTexture(deathTex), hitTexture(hitTex), x(startX), y(startY), currentFrame(0),
+        lastFrameTime(0), lastAttackTime(0),health(15),
+        isAlive(true), isDying(false) {
     attackTexture = attackTex;
     deathTexture = deathTex;
     hitTexture = hitTex;
@@ -41,7 +45,7 @@ void Boss::updateAnimation(int currentTime) {
     }
 }
 
-void Boss::update(float playerX, float playerY) {
+void Boss::update(float playerX, float playerY, Mix_Chunk* bossAttackSound) {
     if (!isAlive && !isDying) return; // Đã chết hoàn toàn, không cập nhật
 
     if (isAlive) {
@@ -50,6 +54,9 @@ void Boss::update(float playerX, float playerY) {
             float hitStartX = x + (frameWidth - 32) / 2; // Căn giữa boss
             float hitStartY = y + frameHeight;
             hits.emplace_back(hitTexture, hitStartX, hitStartY);
+            if (bossAttackSound) {
+                Mix_PlayChannel(-1, bossAttackSound, 0);
+            }
             lastAttackTime = currentTime;
         }
 
