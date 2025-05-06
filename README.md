@@ -11,7 +11,7 @@ Archery Defender được phát triển bằng SDL2 và C++. Người chơi đi�
   - Di chuyển trái/phải bằng phím A/D.
   - Bắn mũi tên tự động mỗi 0,5 giây.
 - **Kẻ địch**:
-  - Xuất hiện ngẫu nhiên từ phía trên màn hình mỗi 1 giây.
+  - Xuất hiện ngẫu nhiên từ phía trên màn hình mỗi 2 giây.
   - Di chuyển xuống dưới và bắn laser khi ở gần nhân vật.
   - Có animation idle và tấn công.
 - **Boss**:
