@@ -3,6 +3,7 @@
 
 #include <SDL.h>
 #include <vector>
+#include <SDL_mixer.h>
 #include "boss_hit.h"
 
 class Boss {
@@ -19,11 +20,11 @@ public:
     int frameTime, lastFrameTime;
     std::vector<BossHit> hits;
     Uint32 lastAttackTime;
-    int health; // Số mũi tên cần để hạ boss
+    int health;
     bool isAlive;
-    bool isDying; // Trạng thái đang chạy animation chết
+    bool isDying;
     void updateAnimation(int currentTime);
-    void update(float playerX, float playerY);
+    void update(float playerX, float playerY,Mix_Chunk* bossAttackSound);
     void render(SDL_Renderer* renderer) const;
 };
 
